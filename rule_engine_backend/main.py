@@ -4,7 +4,6 @@ from models import RuleInput
 from models import EvaluateData
 from models import CombinedRules
 from db import rules_collection
-from pydantic import BaseModel
 from fastapi import Body
 from utils import Node, create_rule, combine_rules, evaluate_rule
 

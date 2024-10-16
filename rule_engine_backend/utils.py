@@ -130,30 +130,26 @@ def node_to_dict(node):
 
 
 
-
-
 def evaluate_node(node, data):
-    # Check if the node is an operator
+    # Check if the node is an operator (AND, OR)
     if node.node_type == "operator":
-        if node.value in ("AND", "OR"):
-            # Evaluate left and right children
-            left_eval = evaluate_node(node.left, data)
-            right_eval = evaluate_node(node.right, data)
+        left_eval = evaluate_node(node.left, data)
+        right_eval = evaluate_node(node.right, data)
 
-            if node.value == "AND":
-                return left_eval and right_eval
-            elif node.value == "OR":
-                return left_eval or right_eval
+        if node.value == "AND":
+            return left_eval and right_eval
+        elif node.value == "OR":
+            return left_eval or right_eval
         else:
             raise ValueError(f"Unexpected operator: {node.value}")
 
-    # Check if the node is an operand
+    # Check if the node is an operand (comparison operation)
     elif node.node_type == "operand":
-        # Ensure that node.value is not empty and contains an operator
+        # Ensure the operand is in the format "left operator right"
         if not node.value or len(node.value.split()) < 3:
             raise ValueError(f"Unexpected operand format: {node.value}")
 
-        # Split the value into left operand, operator, and right operand
+        # Split into left operand, operator, and right operand
         parts = re.split(r'\s*(==|!=|>=|<=|>|<)\s*', node.value)
         if len(parts) != 3:
             raise ValueError(f"Unexpected operand format: {node.value}")
@@ -164,9 +160,20 @@ def evaluate_node(node, data):
         left = left.strip()
         right = right.strip()
 
-        # Get the actual values from the data dictionary
+        # Get the actual value from the data dictionary
         left_value = data.get(left, None)
-        right_value = eval(right) if right.isdigit() else right.strip("'")
+
+        # Handle the right operand as either string or number
+        if right.isdigit():
+            right_value = float(right)  # Assume it's a number
+        elif right.startswith("'") and right.endswith("'"):
+            right_value = right.strip("'")  # Treat as string
+        else:
+            raise ValueError(f"Invalid operand value: {right}")
+
+        # If the attribute is missing from the data, return False
+        if left_value is None:
+            return False
 
         # Perform the comparison
         if operator == '==':
@@ -186,7 +193,7 @@ def evaluate_node(node, data):
 
     else:
         raise ValueError(f"Unexpected node type: {node.node_type}")
-    
+
 def evaluate_rule(ast_root, data):
     return evaluate_node(ast_root, data)
 
