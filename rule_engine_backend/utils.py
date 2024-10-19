@@ -2,13 +2,12 @@ import re
 
 class Node:
     def __init__(self, node_type, left=None, right=None, value=None):
-        self.node_type = node_type  # "operator" or "operand"
-        self.left = left            # Reference to left child (Node)
-        self.right = right          # Reference to right child (Node)
-        self.value = value          # The value of the node (e.g., the operator or operand)
+        self.node_type = node_type  
+        self.left = left            
+        self.right = right          
+        self.value = value          
 
     def to_dict(self):
-        # Create a dictionary representation of the Node for storage in MongoDB
         node_dict = {
             "node_type": self.node_type,
             "value": self.value,
@@ -27,87 +26,74 @@ class Node:
         return node
 
 
-        # Value for operand nodes
 
 def tokenize(rule_string):
-    # Tokenize the input rule string while keeping operators and parentheses
-    # This pattern captures conditions, operators, AND, OR, and parentheses correctly
     pattern = r'\s*(=>|<=|==|!=|>=|>|<|AND|OR|\(|\)|\'[^\']*\'|\"[^\"]*\"|[\w_]+\s*[=><!]+\s*[^() ]+|[\w_]+)\s*'
     return re.findall(pattern, rule_string)
 
 def create_operator_node(operators, operands):
-    op = operators.pop()  # Get the operator
-    right = operands.pop()  # Right operand
-    left = operands.pop()  # Left operand
+    op = operators.pop() 
+    right = operands.pop() 
+    left = operands.pop()  
     operands.append(Node("operator", left=left, right=right, value=op))
 
 def create_rule(rule_string):
     tokens = tokenize(rule_string)
-    operators = []  # Stack for operators (AND/OR)
-    operands = []   # Stack for operands (conditions or other expressions)
+    operators = []  
+    operands = []   
 
-    precedence = {'AND': 2, 'OR': 1}  # Precedence of operators
+    precedence = {'AND': 2, 'OR': 1}
     i = 0
     
     while i < len(tokens):
         token = tokens[i]
         
         if token == '(':
-            # If the token is '(', we look for the complete expression within it
-            start = i + 1  # Start looking after '('
-            balance = 1  # To keep track of parentheses balance
+            start = i + 1  
+            balance = 1  
             while balance > 0 and i < len(tokens) - 1:
                 i += 1
                 if tokens[i] == '(':
                     balance += 1
                 elif tokens[i] == ')':
                     balance -= 1
-            # Extract the full expression within parentheses
             expression = ' '.join(tokens[start:i])
-            operands.append(create_rule(expression))  # Recursively create the subtree
+            operands.append(create_rule(expression))  
         elif token in precedence:
             while (operators and operators[-1] != '(' and 
                    precedence[operators[-1]] >= precedence[token]):
                 create_operator_node(operators, operands)
             operators.append(token)
         elif i + 2 < len(tokens) and tokens[i + 1] in ['>', '<', '>=', '<=', '==', '!=']:
-            # Handle full operand including the operator and value
             full_operand = f"{token} {tokens[i + 1]} {tokens[i + 2]}"
             operands.append(Node("operand", value=full_operand))
-            i += 2  # Skip the operator and the next value
+            i += 2 
         else:
-            # If it's a standalone identifier (shouldn't happen in this case)
             operands.append(Node("operand", value=token))
         i += 1
 
     while operators:
         create_operator_node(operators, operands)
 
-    return operands[0] if operands else None  # Return the root of the AST or None
+    return operands[0] if operands else None  
 
 
 
 
 def combine_rules(rules):
     operator_count = {'AND': 0, 'OR': 0}
-
-    # Count the frequency of operators in the provided rules
     for rule in rules:
         tokens = tokenize(rule)
         for token in tokens:
             if token in operator_count:
                 operator_count[token] += 1
-
-    # Choose the most frequent operator to combine rules
     main_operator = 'OR' if operator_count['OR'] >= operator_count['AND'] else 'AND'
     
     combined_operands = []
 
     for rule in rules:
-        ast = create_rule(rule)  # Ensure this returns a Node, not a coroutine
+        ast = create_rule(rule) 
         combined_operands.append(ast)
-
-    # Combine all ASTs based on the main operator
     root = combined_operands.pop(0)
     while combined_operands:
         next_operand = combined_operands.pop(0)
@@ -118,7 +104,6 @@ def combine_rules(rules):
 
 
 def node_to_dict(node):
-    """Convert a Node object to a dictionary representation."""
     if node is None:
         return None
     return {
@@ -131,7 +116,6 @@ def node_to_dict(node):
 
 
 def evaluate_node(node, data):
-    # Check if the node is an operator (AND, OR)
     if node.node_type == "operator":
         left_eval = evaluate_node(node.left, data)
         right_eval = evaluate_node(node.right, data)
@@ -143,27 +127,19 @@ def evaluate_node(node, data):
         else:
             raise ValueError(f"Unexpected operator: {node.value}")
 
-    # Check if the node is an operand (comparison operation)
     elif node.node_type == "operand":
-        # Ensure the operand is in the format "left operator right"
         if not node.value or len(node.value.split()) < 3:
             raise ValueError(f"Unexpected operand format: {node.value}")
 
-        # Split into left operand, operator, and right operand
         parts = re.split(r'\s*(==|!=|>=|<=|>|<)\s*', node.value)
         if len(parts) != 3:
             raise ValueError(f"Unexpected operand format: {node.value}")
 
         left, operator, right = parts
-
-        # Strip any whitespace around the values
         left = left.strip()
         right = right.strip()
-
-        # Get the actual value from the data dictionary
         left_value = data.get(left, None)
 
-        # Handle the right operand as either string or number
         if right.isdigit():
             right_value = float(right)  # Assume it's a number
         elif right.startswith("'") and right.endswith("'"):
@@ -171,11 +147,9 @@ def evaluate_node(node, data):
         else:
             raise ValueError(f"Invalid operand value: {right}")
 
-        # If the attribute is missing from the data, return False
         if left_value is None:
             return False
 
-        # Perform the comparison
         if operator == '==':
             return left_value == right_value
         elif operator == '!=':
